@@ -1,0 +1,13 @@
+{
+  "name": "sentinelops",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm --parallel -r build",
+    "test": "pnpm --parallel -r test",
+    "lint": "pnpm --parallel -r lint"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
