@@ -1,0 +1,23 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/backend: {}
+
+  apps/frontend: {}
+
+  modules/ai-engine: {}
+
+  modules/audit-engine: {}
+
+  modules/dashboard: {}
+
+  modules/procurement-engine: {}
+
+  modules/security-engine: {}
