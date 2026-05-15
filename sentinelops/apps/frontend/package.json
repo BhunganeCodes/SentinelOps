@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-{"name":"@sentinelops/frontend","private":true}
-=======
 {
   "name": "frontend",
   "version": "0.1.0",
@@ -16,7 +13,8 @@
     "dotenv": "^17.4.2",
     "next": "16.2.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -29,4 +27,3 @@
     "typescript": "^5"
   }
 }
->>>>>>> 31040d600d301f268de080f07144d9143f93d237
