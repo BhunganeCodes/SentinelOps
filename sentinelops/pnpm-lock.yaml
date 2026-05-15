@@ -36,7 +36,14 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  apps/frontend: {}
+  apps/frontend:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.105.4
+        version: 2.105.4
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
 
   modules/ai-engine: {}
 
