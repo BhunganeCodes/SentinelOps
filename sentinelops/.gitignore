@@ -9,3 +9,4 @@ apps/backend/.env
 apps/backend/.env.example
 apps/frontend/.env
 apps/frontend/.env.example
+apps/frontend/.env.local
