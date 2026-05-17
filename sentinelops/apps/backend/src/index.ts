@@ -1,10 +1,10 @@
-import 'dotenv/config'
+import './config/env'
+import aiRoutes from './routes/ai.routes'
 import './config/env'
 import express from 'express'
 import http from 'http'
 import cors from 'cors'
 import { Server } from 'socket.io'
-
 const app = express()
 const server = http.createServer(app)
 
@@ -19,6 +19,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000'
 }))
 app.use(express.json())
+
+app.use('/api/ai', aiRoutes)
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' })
