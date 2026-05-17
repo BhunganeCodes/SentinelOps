@@ -31,9 +31,21 @@ router.post('/analyze-document', async (req, res) => {
       console.error('Supabase insert error:', error)
     }
 
+    // Calculate risk level
+    const score = analysis.anomaly_score
+
+    const riskLevel =
+      score >= 0.8 ? 'HIGH' :
+      score >= 0.5 ? 'MEDIUM' :
+      'LOW'
+
+    // Return analysis with risk level
     res.json({
       success: true,
-      data: analysis
+      data: {
+        ...analysis,
+        risk_level: riskLevel
+      }
     })
   } catch (error) {
     console.error('AI analysis failed:', error)
@@ -41,6 +53,32 @@ router.post('/analyze-document', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to analyze document'
+    })
+  }
+})
+
+router.get('/analyses', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('procurement_analyses')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error) {
+      throw error
+    }
+
+    res.json({
+      success: true,
+      data
+    })
+  } catch (error) {
+    console.error('Failed to fetch analyses:', error)
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analyses'
     })
   }
 })
