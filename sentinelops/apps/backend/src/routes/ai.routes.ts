@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { analyzeProcurementDocument } from '../services/gemini.service'
+import { supabase } from '../lib/supabase'
 
 const router = Router()
 
@@ -13,7 +14,22 @@ router.post('/analyze-document', async (req, res) => {
       })
     }
 
+    // Analyze document using Gemini
     const analysis = await analyzeProcurementDocument(documentText)
+
+    // Save result to Supabase
+    const { error } = await supabase
+      .from('procurement_analyses')
+      .insert([
+        {
+          document_text: documentText,
+          analysis_json: analysis
+        }
+      ])
+
+    if (error) {
+      console.error('Supabase insert error:', error)
+    }
 
     res.json({
       success: true,
