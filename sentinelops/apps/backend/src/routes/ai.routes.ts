@@ -19,7 +19,7 @@ router.post('/analyze-document', async (req, res) => {
 
     // Save result to Supabase
     const { error } = await supabase
-      .from('procurement_analyses')
+      .from('procurement_analysis')
       .insert([
         {
           document_text: documentText,
@@ -60,7 +60,7 @@ router.post('/analyze-document', async (req, res) => {
 router.get('/analyses', async (_req, res) => {
   try {
     const { data, error } = await supabase
-      .from('procurement_analyses')
+      .from('procurement_analysis')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(20)

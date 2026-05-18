@@ -30,6 +30,8 @@ export const uploadMiddleware = multer({
       return
     }
 
-    callback(new Error('Only PDF and TXT files are supported'))
+    const error = new Error('Only PDF and TXT files are supported') as Error & { statusCode: number }
+    error.statusCode = 400
+    callback(error)
   }
 })

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'child_process'
+import os from 'os'
+import path from 'path'
 
 describe('env validation', () => {
   it('exits with non-zero code when a required key is missing', () => {
@@ -9,13 +11,16 @@ describe('env validation', () => {
         '-r',
         'ts-node/register',
         '-e',
-        "delete process.env.SUPABASE_URL; require('./src/config/env')"
+        `require(${JSON.stringify(path.resolve('src/config/env.ts'))})`
       ],
       {
-        cwd: process.cwd(),
+        cwd: os.tmpdir(),
         env: {
-          ...process.env,
           SUPABASE_URL: '',
+          SUPABASE_ANON_KEY: 'anon',
+          SUPABASE_SERVICE_ROLE_KEY: 'service',
+          GEMINI_API_KEY: 'gemini',
+          LOBSTER_TRAP_KEY: 'lobster',
           TS_NODE_TRANSPILE_ONLY: '1'
         },
         stdio: 'pipe',

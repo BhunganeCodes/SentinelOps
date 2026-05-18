@@ -2,6 +2,7 @@ import './config/env'
 import http from 'http'
 import { Server } from 'socket.io'
 import { app } from './app'
+import { setRealtimeServer } from './services/realtime.service'
 
 const server = http.createServer(app)
 
@@ -11,6 +12,8 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 })
+
+setRealtimeServer(io)
 
 // Smoke test — emit a ping every 5 seconds
 setInterval(() => {

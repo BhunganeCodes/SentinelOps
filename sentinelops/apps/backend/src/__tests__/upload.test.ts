@@ -15,6 +15,10 @@ vi.mock('../lib/supabase', () => ({
 }))
 
 vi.mock('../services/analysis.service', () => ({
+  inspectPrompt: vi.fn()
+}))
+
+vi.mock('../services/workflow.orchestrator', () => ({
   triggerDocumentAnalysis: triggerDocumentAnalysisMock
 }))
 
@@ -104,7 +108,7 @@ describe('TEST-3.3 POST /api/upload', () => {
         original_filename: 'purchase-order.txt',
         mime_type: 'text/plain',
         status: 'processing',
-        file_path: expect.stringContaining('/tmp/')
+        file_path: expect.stringContaining('purchase-order.txt')
       })
     )
     expect(triggerDocumentAnalysisMock).toHaveBeenCalledWith('document-123')

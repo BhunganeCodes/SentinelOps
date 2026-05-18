@@ -17,7 +17,18 @@ app.get('/health', (_req, res) => {
 app.use('/api/ai', aiRoutes)
 app.use('/api', procurementRoutes)
 
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((error: Error & { statusCode?: number; code?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(error)
-  res.status(500).json({ error: 'Internal server error' })
+
+  const statusCode = error.statusCode ?? (error.code === 'LIMIT_FILE_SIZE' ? 413 : 500)
+  const isProduction = process.env.NODE_ENV === 'production'
+  const message = isProduction && statusCode >= 500
+    ? 'Internal server error'
+    : error.message || 'Internal server error'
+
+  res.status(statusCode).json({
+    error: message,
+    code: error.code,
+    statusCode
+  })
 })

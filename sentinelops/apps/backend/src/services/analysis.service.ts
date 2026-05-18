@@ -1,20 +1,19 @@
 import { supabase } from "../lib/supabase";
-import {
-  getDocumentForAnalysis,
-  readDocumentText,
-  updateDocumentStatus
-} from "./document.service";
+import { emitRealtimeEvent } from "./realtime.service";
+import { getRiskLevel, scoreVendorAnomaly } from "./vendor-anomaly.detector";
 
 type PromptInspectionResult = {
   allowed: boolean;
   reason?: string;
+  event_id?: string;
+  risk_delta: number;
 };
 
-type VendorFinding = {
+export type VendorFinding = {
   vendor_name: string;
   price: number | null;
   anomaly_score: number;
-  risk_level: "low" | "medium" | "high";
+  risk_level: "low" | "medium" | "high" | "critical";
   suspicious_claim: string | null;
 };
 
@@ -36,14 +35,26 @@ const blockedPromptPatterns = [
   /service\s+role\s+key/i
 ];
 
-export async function inspectPrompt(prompt: string): Promise<PromptInspectionResult> {
+type PromptInspectionContext = {
+  source?: string;
+  document_id?: string;
+  declared_intent?: string;
+};
+
+export async function inspectPrompt(
+  prompt: string,
+  context: PromptInspectionContext = {}
+): Promise<PromptInspectionResult> {
   const normalizedPrompt = prompt.trim();
 
   if (!normalizedPrompt) {
-    return {
+    return saveGovernanceEvent({
       allowed: false,
-      reason: "Document did not contain inspectable text"
-    };
+      reason: "Document did not contain inspectable text",
+      risk_delta: 20,
+      prompt,
+      context
+    });
   }
 
   const matchedPattern = blockedPromptPatterns.find((pattern) =>
@@ -51,74 +62,35 @@ export async function inspectPrompt(prompt: string): Promise<PromptInspectionRes
   );
 
   if (matchedPattern) {
-    return {
+    return saveGovernanceEvent({
       allowed: false,
-      reason: `Blocked unsafe prompt content matching ${matchedPattern.source}`
-    };
-  }
-
-  return { allowed: true };
-}
-
-export async function analyzeDocument(
-  documentId: string,
-  documentText?: string
-): Promise<void> {
-  const text = documentText ?? (await readDocumentText(await getDocumentForAnalysis(documentId)));
-  const findings = await analyzeWithGemini(text);
-
-  const { error: analysisError } = await supabase.from("procurement_analysis").insert({
-    document_id: documentId,
-    status: "completed",
-    summary: summarizeFindings(findings)
-  });
-
-  if (analysisError) {
-    throw new Error(`Failed to save procurement analysis: ${analysisError.message}`);
-  }
-
-  if (findings.length > 0) {
-    const { error: vendorError } = await supabase.from("vendors").insert(
-      findings.map((finding) => ({
-        document_id: documentId,
-        vendor_name: finding.vendor_name,
-        price: finding.price,
-        anomaly_score: finding.anomaly_score,
-        risk_level: finding.risk_level,
-        suspicious_claim: finding.suspicious_claim
-      }))
-    );
-
-    if (vendorError) {
-      throw new Error(`Failed to save vendor findings: ${vendorError.message}`);
-    }
-  }
-
-  await updateDocumentStatus(documentId, "completed");
-}
-
-export function triggerDocumentAnalysis(documentId: string): void {
-  void processUploadedDocument(documentId).catch((error: unknown) => {
-    console.error("Background document analysis failed", error);
-  });
-}
-
-export async function processUploadedDocument(documentId: string): Promise<void> {
-  const document = await getDocumentForAnalysis(documentId);
-  const text = await readDocumentText(document);
-  const inspection = await inspectPrompt(text);
-
-  if (!inspection.allowed) {
-    await updateDocumentStatus(documentId, "blocked");
-    await supabase.from("procurement_analysis").insert({
-      document_id: documentId,
-      status: "blocked",
-      summary: inspection.reason ?? "Prompt inspection blocked the document"
+      reason: `Blocked unsafe prompt content matching ${matchedPattern.source}`,
+      risk_delta: 50,
+      prompt,
+      context
     });
-    return;
   }
 
-  await analyzeDocument(documentId, text);
+  if (context.declared_intent && !promptMatchesIntent(prompt, context.declared_intent)) {
+    return saveGovernanceEvent({
+      allowed: true,
+      reason: "Prompt did not match declared intent",
+      risk_delta: 15,
+      prompt,
+      context
+    });
+  }
+
+  return saveGovernanceEvent({
+    allowed: true,
+    risk_delta: 0,
+    prompt,
+    context
+  });
+}
+
+export async function analyzeDocumentText(documentText: string): Promise<VendorFinding[]> {
+  return analyzeWithGemini(documentText);
 }
 
 async function analyzeWithGemini(documentText: string): Promise<VendorFinding[]> {
@@ -127,7 +99,7 @@ async function analyzeWithGemini(documentText: string): Promise<VendorFinding[]>
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: {
@@ -142,7 +114,7 @@ async function analyzeWithGemini(documentText: string): Promise<VendorFinding[]>
                 text: [
                   "Extract procurement vendor findings from this document.",
                   "Return only JSON with a vendors array.",
-                  "Each vendor must include vendor_name, price, anomaly_score from 0 to 1, risk_level low|medium|high, and suspicious_claim.",
+                  "Each vendor must include vendor_name, price, anomaly_score from 0 to 100, risk_level low|medium|high|critical, suspicious_claim, price_inflation, unknown_entity, and suspicious_clauses.",
                   documentText
                 ].join("\n\n")
               }
@@ -167,7 +139,12 @@ async function analyzeWithGemini(documentText: string): Promise<VendorFinding[]>
     return analyzeWithLocalHeuristics(documentText);
   }
 
-  return normalizeFindings(JSON.parse(text));
+  try {
+    return normalizeFindings(JSON.parse(text));
+  } catch (error) {
+    console.warn("Gemini returned invalid JSON; falling back to local heuristics", error);
+    return analyzeWithLocalHeuristics(documentText);
+  }
 }
 
 function analyzeWithLocalHeuristics(documentText: string): VendorFinding[] {
@@ -185,13 +162,17 @@ function analyzeWithLocalHeuristics(documentText: string): VendorFinding[] {
     }
 
     const suspiciousClaim = findSuspiciousClaim(documentText);
-    const anomalyScore = suspiciousClaim || price > 10000 ? 0.87 : 0.24;
+    const anomalyScore = scoreVendorAnomaly({
+      price_inflation: price > 10000 ? 0.35 : 0,
+      unknown_entity: /unknown|unverified/i.test(name),
+      suspicious_clauses: suspiciousClaim ? 3 : 0
+    });
 
     findings.push({
       vendor_name: name,
       price: Number.isFinite(price) ? price : null,
       anomaly_score: anomalyScore,
-      risk_level: anomalyScore >= 0.75 ? "high" : anomalyScore >= 0.45 ? "medium" : "low",
+      risk_level: getRiskLevel(anomalyScore),
       suspicious_claim: suspiciousClaim
     });
   }
@@ -200,7 +181,7 @@ function analyzeWithLocalHeuristics(documentText: string): VendorFinding[] {
     findings.push({
       vendor_name: "Unknown vendor",
       price: null,
-      anomaly_score: 0.5,
+      anomaly_score: 40,
       risk_level: "medium",
       suspicious_claim: "No structured vendor line could be extracted"
     });
@@ -236,15 +217,16 @@ function normalizeFindings(value: unknown): VendorFinding[] {
 
       const record = vendor as Record<string, unknown>;
       const riskLevel = String(record.risk_level ?? "medium").toLowerCase();
+      const score = normalizeScore(Number(record.anomaly_score ?? NaN), record);
 
       return {
         vendor_name: String(record.vendor_name ?? record.name ?? "Unknown vendor"),
         price: typeof record.price === "number" ? record.price : Number(record.price) || null,
-        anomaly_score: clampScore(Number(record.anomaly_score ?? 0.5)),
+        anomaly_score: score,
         risk_level:
-          riskLevel === "low" || riskLevel === "medium" || riskLevel === "high"
+          riskLevel === "low" || riskLevel === "medium" || riskLevel === "high" || riskLevel === "critical"
             ? riskLevel
-            : "medium",
+            : getRiskLevel(score),
         suspicious_claim:
           typeof record.suspicious_claim === "string" ? record.suspicious_claim : null
       };
@@ -252,16 +234,74 @@ function normalizeFindings(value: unknown): VendorFinding[] {
     .filter((vendor): vendor is VendorFinding => vendor !== null);
 }
 
-function clampScore(score: number): number {
+function normalizeScore(score: number, record: Record<string, unknown>): number {
   if (!Number.isFinite(score)) {
-    return 0.5;
+    return scoreVendorAnomaly({
+      price_inflation: Number(record.price_inflation ?? 0),
+      unknown_entity: Boolean(record.unknown_entity),
+      suspicious_clauses: Number(record.suspicious_clauses ?? 0)
+    });
   }
 
-  return Math.max(0, Math.min(1, score));
+  const percentageScore = score <= 1 ? score * 100 : score;
+
+  return Math.round(Math.max(0, Math.min(100, percentageScore)));
 }
 
-function summarizeFindings(findings: VendorFinding[]): string {
-  const highRiskCount = findings.filter((finding) => finding.risk_level === "high").length;
+async function saveGovernanceEvent(input: {
+  allowed: boolean;
+  reason?: string;
+  risk_delta: number;
+  prompt: string;
+  context: PromptInspectionContext;
+}): Promise<PromptInspectionResult> {
+  const eventType = input.allowed ? (input.risk_delta > 0 ? "flag" : "allow") : "block";
+  const severity = input.allowed ? (input.risk_delta > 0 ? "medium" : "low") : "critical";
 
-  return `Found ${findings.length} vendor finding(s); ${highRiskCount} high risk.`;
+  const { data, error } = await supabase
+    .from("governance_events")
+    .insert({
+      prompt_snippet: input.prompt.slice(0, 500),
+      action: eventType,
+      policy_triggered: input.reason ?? input.context.source ?? "Prompt inspection",
+      risk_delta: input.risk_delta
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save governance event: ${error.message}`);
+  }
+
+  const result = {
+    allowed: input.allowed,
+    reason: input.reason,
+    event_id: data?.id ? String(data.id) : undefined,
+    risk_delta: input.risk_delta
+  };
+
+  emitRealtimeEvent("risk_event", {
+    ...result,
+    event_type: eventType,
+    severity,
+    source: input.context.source ?? "api",
+    document_id: input.context.document_id,
+    created_at: new Date().toISOString()
+  });
+
+  return result;
+}
+
+function promptMatchesIntent(prompt: string, declaredIntent: string): boolean {
+  const intentWords = declaredIntent
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 3);
+
+  if (intentWords.length === 0) {
+    return true;
+  }
+
+  const promptLower = prompt.toLowerCase();
+  return intentWords.some((word) => promptLower.includes(word));
 }

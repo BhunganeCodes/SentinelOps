@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Badge, Card, Shell } from "../components/sentinel-shell";
+import { API_URL, getJson, toneFromSeverity, type ProcurementReport } from "../lib/api";
 
 const recentUploads = [
   { name: "demo-procurement-document.pdf", type: "PDF", status: "queued", risk: "info" },
@@ -13,19 +14,58 @@ export default function UploadPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selected, setSelected] = useState<string>("No file selected");
   const [progress, setProgress] = useState(0);
+  const [documentId, setDocumentId] = useState<string | null>(null);
+  const [report, setReport] = useState<ProcurementReport | null>(null);
+  const [status, setStatus] = useState<"idle" | "uploading" | "complete" | "error">("idle");
+  const [message, setMessage] = useState<string | null>(null);
 
-  function simulateUpload(fileName?: string) {
-    setSelected(fileName ?? "demo-procurement-document.pdf");
-    setProgress(12);
-    const timer = window.setInterval(() => {
-      setProgress((value) => {
-        if (value >= 100) {
-          window.clearInterval(timer);
-          return 100;
-        }
-        return value + 11;
+  async function uploadFile(file?: File) {
+    if (!file) {
+      return;
+    }
+
+    const validFile = file.type === "application/pdf" || file.type === "text/plain" || /\.(pdf|txt)$/i.test(file.name);
+
+    if (!validFile) {
+      setStatus("error");
+      setMessage("Only PDF and TXT files are supported.");
+      return;
+    }
+
+    setSelected(file.name);
+    setProgress(20);
+    setStatus("uploading");
+    setMessage(null);
+    setReport(null);
+    setDocumentId(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: "POST",
+        body: formData
       });
-    }, 120);
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const body = await response.json() as { document_id: string; status: string };
+      setProgress(70);
+      setDocumentId(body.document_id);
+      setMessage(`Upload accepted. Document ${body.document_id} is ${body.status}.`);
+
+      const loadedReport = await pollReport(body.document_id);
+      setReport(loadedReport);
+      setProgress(100);
+      setStatus("complete");
+    } catch {
+      setStatus("error");
+      setMessage("Something went wrong while uploading or analysing this document.");
+      setProgress(0);
+    }
   }
 
   return (
@@ -45,7 +85,7 @@ export default function UploadPage() {
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
-              simulateUpload(event.dataTransfer.files[0]?.name);
+              void uploadFile(event.dataTransfer.files[0]);
             }}
             className="w-full rounded-lg border-2 border-dashed border-[rgba(255,15,123,0.34)] bg-[rgba(255,15,123,0.04)] px-6 py-12 text-center transition hover:border-[#ff0f7b] hover:bg-[rgba(255,15,123,0.08)]"
           >
@@ -54,9 +94,11 @@ export default function UploadPage() {
               type="file"
               accept=".pdf,.txt"
               className="hidden"
-              onChange={(event) => simulateUpload(event.target.files?.[0]?.name)}
+              onChange={(event) => {
+                void uploadFile(event.target.files?.[0]);
+              }}
             />
-            <div className="text-4xl text-[#ff0f7b]">↑</div>
+            <div className="text-4xl text-[#ff0f7b]">Upload</div>
             <div className="mt-3 text-base font-bold">Drop procurement documents here</div>
             <div className="mt-2 text-sm text-[rgba(245,245,245,0.5)]">PDF and TXT files match the backend upload pipeline.</div>
             <div className="mt-4 flex justify-center gap-2">
@@ -73,6 +115,54 @@ export default function UploadPage() {
             <div className="mt-3 h-2 overflow-hidden rounded bg-[rgba(255,255,255,0.08)]">
               <div className="h-full rounded bg-gradient-to-r from-[#ff0f7b] to-[#ff2d95] transition-all" style={{ width: `${progress}%` }} />
             </div>
+            {message ? (
+              <div className={`mt-3 text-sm ${status === "error" ? "text-[#ffb800]" : "text-[rgba(245,245,245,0.68)]"}`}>
+                {message}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="border-b border-[rgba(255,15,123,0.14)] px-5 py-4">
+            <h2 className="m-0 text-base font-bold">Analysis results</h2>
+          </div>
+          <div className="p-5">
+            {status === "uploading" ? (
+              <div className="text-sm text-[rgba(245,245,245,0.62)]">Waiting for procurement analysis...</div>
+            ) : report ? (
+              <div className="grid gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={toneFromSeverity(report.status)}>{report.status ?? "completed"}</Badge>
+                  {documentId ? <span className="font-mono text-xs text-[rgba(245,245,245,0.44)]">{documentId}</span> : null}
+                </div>
+                <p className="m-0 text-sm leading-6 text-[rgba(245,245,245,0.68)]">{report.summary ?? "Analysis completed."}</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="text-[11px] uppercase tracking-[0.14em] text-[rgba(245,245,245,0.45)]">
+                        <th className="py-2 pr-4 font-semibold">Supplier</th>
+                        <th className="py-2 pr-4 font-semibold">Risk</th>
+                        <th className="py-2 pr-4 font-semibold">Anomaly</th>
+                        <th className="py-2 pr-4 font-semibold">Finding</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[rgba(255,255,255,0.05)]">
+                      {(report.analysis_json?.vendors ?? []).map((vendor) => (
+                        <tr key={`${vendor.vendor_name ?? vendor.name}-${vendor.anomaly_score ?? vendor.score}`}>
+                          <td className="py-3 pr-4 font-semibold">{vendor.vendor_name ?? vendor.name ?? "Unknown vendor"}</td>
+                          <td className="py-3 pr-4"><Badge tone={toneFromSeverity(vendor.risk_level ?? vendor.risk)}>{vendor.risk_level ?? vendor.risk ?? "medium"}</Badge></td>
+                          <td className="py-3 pr-4 text-[#ff0f7b]">{Math.round(Number(vendor.anomaly_score ?? vendor.score ?? 0))}</td>
+                          <td className="py-3 pr-4 text-[rgba(245,245,245,0.62)]">{vendor.suspicious_claim ?? "No suspicious claim recorded"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-[rgba(245,245,245,0.5)]">Upload a PDF or TXT file to show procurement analysis results.</div>
+            )}
           </div>
         </Card>
 
@@ -101,4 +191,20 @@ export default function UploadPage() {
       </div>
     </Shell>
   );
+}
+
+async function pollReport(documentId: string): Promise<ProcurementReport> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const response = await getJson<{ report: ProcurementReport }>(`/api/procurement-report?document_id=${encodeURIComponent(documentId)}`);
+      return response.report;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Analysis report was not ready");
 }

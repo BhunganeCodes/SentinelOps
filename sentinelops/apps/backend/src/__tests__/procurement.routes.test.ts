@@ -22,12 +22,17 @@ vi.mock('../services/analysis.service', () => ({
     if (/ignore\s+previous\s+instructions|system\s+prompt/i.test(prompt)) {
       return {
         allowed: false,
-        reason: 'Blocked unsafe prompt content'
+        reason: 'Blocked unsafe prompt content',
+        event_id: 'event-123',
+        risk_delta: 50
       }
     }
 
-    return { allowed: true }
-  }),
+    return { allowed: true, event_id: 'event-124', risk_delta: 0 }
+  })
+}))
+
+vi.mock('../services/workflow.orchestrator', () => ({
   triggerDocumentAnalysis: vi.fn()
 }))
 
@@ -73,13 +78,22 @@ describe('POST /api/upload', () => {
     limitMock.mockResolvedValue({
       data: [
         {
-          id: 'vendor-1',
+          id: 'analysis-1',
           document_id: 'document-456',
-          vendor_name: 'Apex Stationery',
-          price: 12999,
-          anomaly_score: 0.87,
-          risk_level: 'high',
-          suspicious_claim: 'Urgent cash payment requested',
+          supplier_names: ['Apex Stationery'],
+          pricing_details: {
+            vendors: [
+              {
+                vendor_name: 'Apex Stationery',
+                price: 12999,
+                anomaly_score: 87,
+                risk_level: 'high',
+                suspicious_claim: 'Urgent cash payment requested'
+              }
+            ]
+          },
+          anomaly_score: 87,
+          compliance_risks: ['high'],
           created_at: '2026-05-18T10:00:00.000Z'
         }
       ],
@@ -151,7 +165,7 @@ describe('POST /api/upload', () => {
     expect((body as { vendors: unknown }).vendors).toEqual([
       expect.objectContaining({
         vendor_name: 'Apex Stationery',
-        anomaly_score: 0.87,
+        anomaly_score: 87,
         risk_level: 'high'
       })
     ])

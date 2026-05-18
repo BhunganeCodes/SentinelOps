@@ -20,6 +20,7 @@ export async function createProcessingDocument(
   const { data, error } = await supabase
     .from("documents")
     .insert({
+      filename: file.originalname,
       original_filename: file.originalname,
       mime_type: file.mimetype,
       size_bytes: file.size,
@@ -30,7 +31,7 @@ export async function createProcessingDocument(
     .single();
 
   if (error) {
-    throw new Error(`Failed to create document: ${error.message}`);
+    throw new Error(`Failed to create document row in Supabase: ${error.message}`);
   }
 
   if (!data?.id) {
@@ -70,7 +71,7 @@ export async function getDocumentForAnalysis(
 
 export async function updateDocumentStatus(
   documentId: string,
-  status: "blocked" | "processing" | "completed" | "failed"
+  status: "blocked" | "processing" | "complete" | "failed"
 ): Promise<void> {
   const { error } = await supabase
     .from("documents")
