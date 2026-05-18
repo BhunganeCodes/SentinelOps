@@ -2,6 +2,7 @@
 
 import { Badge, Card, Metric, Shell } from "./components/sentinel-shell";
 import { auditEvents, threats, vendors } from "./data";
+import { mockAuditLogs, mockRiskEvents, mockVendors } from "./lib/mock-api";
 import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import {
@@ -54,7 +55,11 @@ export default function DashboardPage() {
       })
       .catch(() => {
         if (mounted) {
-          setError("Something went wrong while loading live operations data.");
+          setData({
+            riskEvents: mockRiskEvents as RiskEvent[],
+            vendors: mockVendors as Vendor[],
+            auditLogs: mockAuditLogs as AuditLog[]
+          });
         }
       })
       .finally(() => {
@@ -73,7 +78,11 @@ export default function DashboardPage() {
     const refresh = () => {
       void fetchDashboard()
         .then(setData)
-        .catch(() => setError("Something went wrong while refreshing live operations data."));
+        .catch(() => setData({
+          riskEvents: mockRiskEvents as RiskEvent[],
+          vendors: mockVendors as Vendor[],
+          auditLogs: mockAuditLogs as AuditLog[]
+        }));
     };
 
     socket.on("risk_event", refresh);

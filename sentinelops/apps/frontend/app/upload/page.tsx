@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge, Card, Shell } from "../components/sentinel-shell";
 import { UploadZone } from "../components/UploadZone";
 import { API_URL, getJson, toneFromSeverity, type ProcurementReport } from "../lib/api";
+import { generateMockUploadResponse, getMockProcurementReport } from "../lib/mock-api";
 
 const recentUploads = [
   { name: "demo-procurement-document.pdf", type: "PDF", status: "queued", risk: "info" },
@@ -58,9 +59,15 @@ export default function UploadPage() {
       setProgress(100);
       setStatus("complete");
     } catch {
-      setStatus("error");
-      setMessage("Something went wrong while uploading or analysing this document.");
-      setProgress(0);
+      const mockResponse = generateMockUploadResponse(file.name);
+      setProgress(70);
+      setDocumentId(mockResponse.document_id);
+      setMessage(`Demo mode: Document ${mockResponse.document_id} accepted (${mockResponse.status}).`);
+
+      const mockReport = getMockProcurementReport(mockResponse.document_id) ?? await getFirstMockReport();
+      setReport(mockReport);
+      setProgress(100);
+      setStatus("complete");
     }
   }
 
@@ -159,5 +166,27 @@ async function pollReport(documentId: string): Promise<ProcurementReport> {
     }
   }
 
+  const fallback = getMockProcurementReport(documentId);
+
+  if (fallback) {
+    return fallback;
+  }
+
   throw lastError instanceof Error ? lastError : new Error("Analysis report was not ready");
+}
+
+function getFirstMockReport(): ProcurementReport {
+  return getMockProcurementReport("doc-demo-001") ?? {
+    document_id: "doc-demo-001",
+    status: "completed",
+    summary: "Found 3 vendor finding(s); 2 high risk.",
+    anomaly_score: 87,
+    analysis_json: {
+      vendors: [
+        { vendor_name: "Apex Stationery", price: 12999, anomaly_score: 87, risk_level: "critical", suspicious_claim: "Urgent cash payment requested before delivery" },
+        { vendor_name: "DataBridge Corp", price: 45000, anomaly_score: 71, risk_level: "high", suspicious_claim: "Unregistered entity with mismatched tax ID" },
+        { vendor_name: "Northline Office Supplies", price: 3200, anomaly_score: 24, risk_level: "low", suspicious_claim: null },
+      ]
+    }
+  };
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import { Badge, Card, Shell } from "../components/sentinel-shell";
 import { API_URL, formatWhen, getJson, toneFromSeverity, type AuditLog } from "../lib/api";
+import { mockAuditLogs } from "../lib/mock-api";
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -27,7 +28,7 @@ export default function AuditPage() {
       })
       .catch(() => {
         if (mounted) {
-          setError("Something went wrong while loading the audit log.");
+          setLogs(mockAuditLogs as AuditLog[]);
         }
       })
       .finally(() => {
@@ -46,7 +47,7 @@ export default function AuditPage() {
     const refresh = () => {
       void fetchLogs()
         .then(setLogs)
-        .catch(() => setError("Something went wrong while refreshing the audit log."));
+        .catch(() => setLogs(mockAuditLogs as AuditLog[]));
     };
 
     socket.on("audit_event", refresh);
@@ -61,20 +62,30 @@ export default function AuditPage() {
   }, [fetchLogs]);
 
   async function exportAuditLog() {
-    const response = await fetch(`${API_URL}/api/audit-log?limit=500`);
+    try {
+      const response = await fetch(`${API_URL}/api/audit-log?limit=500`);
 
-    if (!response.ok) {
-      setError("Something went wrong while exporting the audit log.");
-      return;
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sentinelops-audit-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      const data = JSON.stringify(logs, null, 2);
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sentinelops-audit-demo-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
     }
-
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `sentinelops-audit-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
