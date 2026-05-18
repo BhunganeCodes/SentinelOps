@@ -103,14 +103,13 @@ export default function DashboardPage() {
       const risk = toneFromSeverity(vendor.risk_level ?? vendor.risk);
 
       return {
-        id: vendor.id ?? `${vendor.vendor_name ?? vendor.name ?? "vendor"}-${vendor.created_at ?? score}`,
         name: vendor.vendor_name ?? vendor.name ?? "Unknown vendor",
         score,
         risk,
         status: risk === "critical" || risk === "high" ? "under review" : "active"
       };
     })
-    : vendors.map((vendor) => ({ ...vendor, id: vendor.name }));
+    : vendors;
 
   const liveAuditEvents = data.auditLogs.length > 0
     ? data.auditLogs.map((event, index) => ({
@@ -287,8 +286,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(255,255,255,0.04)]">
-                {liveVendors.map((vendor, index) => (
-                  <tr key={`${vendor.id}-${vendor.name}-${index}`} className="transition-colors duration-200 hover:bg-[rgba(255,255,255,0.02)]">
+                {liveVendors.map((vendor) => (
+                  <tr key={vendor.name} className="transition-colors duration-200 hover:bg-[rgba(255,255,255,0.02)]">
                     <td className="px-6 py-4 font-semibold text-sm">{vendor.name}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
