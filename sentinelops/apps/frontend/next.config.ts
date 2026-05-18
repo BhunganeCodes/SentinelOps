@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
+const projectRoot = new URL(".", import.meta.url).pathname;
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  allowedDevOrigins: ["127.0.0.1"],
+  turbopack: {
+    root: projectRoot,
+  },
 };
 
 export default nextConfig;
