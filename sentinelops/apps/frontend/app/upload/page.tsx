@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Badge, Card, Shell } from "../components/sentinel-shell";
+import { UploadZone } from "../components/UploadZone";
 import { API_URL, getJson, toneFromSeverity, type ProcurementReport } from "../lib/api";
 
 const recentUploads = [
@@ -11,7 +12,6 @@ const recentUploads = [
 ] as const;
 
 export default function UploadPage() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const [selected, setSelected] = useState<string>("No file selected");
   const [progress, setProgress] = useState(0);
   const [documentId, setDocumentId] = useState<string | null>(null);
@@ -19,11 +19,7 @@ export default function UploadPage() {
   const [status, setStatus] = useState<"idle" | "uploading" | "complete" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
-  async function uploadFile(file?: File) {
-    if (!file) {
-      return;
-    }
-
+  async function uploadFile(file: File) {
     const validFile = file.type === "application/pdf" || file.type === "text/plain" || /\.(pdf|txt)$/i.test(file.name);
 
     if (!validFile) {
@@ -78,50 +74,7 @@ export default function UploadPage() {
           </p>
         </div>
 
-        <Card className="p-5">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              void uploadFile(event.dataTransfer.files[0]);
-            }}
-            className="w-full rounded-lg border-2 border-dashed border-[rgba(255,15,123,0.34)] bg-[rgba(255,15,123,0.04)] px-6 py-12 text-center transition hover:border-[#ff0f7b] hover:bg-[rgba(255,15,123,0.08)]"
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".pdf,.txt"
-              className="hidden"
-              onChange={(event) => {
-                void uploadFile(event.target.files?.[0]);
-              }}
-            />
-            <div className="text-4xl text-[#ff0f7b]">Upload</div>
-            <div className="mt-3 text-base font-bold">Drop procurement documents here</div>
-            <div className="mt-2 text-sm text-[rgba(245,245,245,0.5)]">PDF and TXT files match the backend upload pipeline.</div>
-            <div className="mt-4 flex justify-center gap-2">
-              <Badge tone="info">PDF</Badge>
-              <Badge tone="info">TXT</Badge>
-              <Badge tone="low">Prompt gate</Badge>
-            </div>
-          </button>
-          <div className="mt-5 rounded-md border border-[rgba(255,15,123,0.14)] bg-[rgba(255,255,255,0.03)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              <span className="font-semibold">{selected}</span>
-              <span className="text-[#ff0f7b]">{progress}%</span>
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded bg-[rgba(255,255,255,0.08)]">
-              <div className="h-full rounded bg-gradient-to-r from-[#ff0f7b] to-[#ff2d95] transition-all" style={{ width: `${progress}%` }} />
-            </div>
-            {message ? (
-              <div className={`mt-3 text-sm ${status === "error" ? "text-[#ffb800]" : "text-[rgba(245,245,245,0.68)]"}`}>
-                {message}
-              </div>
-            ) : null}
-          </div>
-        </Card>
+        <UploadZone onUpload={uploadFile} progress={progress} status={status} message={message} selectedFileName={selected} />
 
         <Card>
           <div className="border-b border-[rgba(255,15,123,0.14)] px-5 py-4">

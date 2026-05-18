@@ -148,7 +148,7 @@ describe('POST /api/upload', () => {
 
     expect(response.status).toBe(403)
     expect(body).toMatchObject({
-      status: 'blocked'
+      status: 'block'
     })
   })
 

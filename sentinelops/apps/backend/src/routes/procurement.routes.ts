@@ -1,41 +1,10 @@
 import { Router } from "express";
 import { uploadMiddleware } from "../middleware/upload.middleware";
-import { inspectPrompt } from "../services/analysis.service";
 import { triggerDocumentAnalysis } from "../services/workflow.orchestrator";
 import { createProcessingDocument } from "../services/document.service";
 import { supabase } from "../lib/supabase";
 
 const router = Router();
-
-router.post("/inspect-prompt", async (req, res, next) => {
-  try {
-    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt : "";
-    const inspection = await inspectPrompt(prompt, {
-      source: typeof req.body?.source === "string" ? req.body.source : "api",
-      document_id: typeof req.body?.document_id === "string" ? req.body.document_id : undefined,
-      declared_intent: typeof req.body?.declared_intent === "string" ? req.body.declared_intent : undefined
-    });
-
-    if (!inspection.allowed) {
-      res.status(403).json({
-        status: "blocked",
-        reason: inspection.reason,
-        event_id: inspection.event_id,
-        risk_delta: inspection.risk_delta
-      });
-      return;
-    }
-
-    res.status(200).json({
-      status: inspection.risk_delta > 0 ? "flagged" : "approved",
-      reason: inspection.reason,
-      event_id: inspection.event_id,
-      risk_delta: inspection.risk_delta
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 router.post("/upload", uploadMiddleware.single("file"), async (req, res, next) => {
   try {
@@ -57,13 +26,6 @@ router.post("/upload", uploadMiddleware.single("file"), async (req, res, next) =
   } catch (error) {
     next(error);
   }
-});
-
-router.post("/analyze-document", async (req, res) => {
-  res.status(202).json({
-    status: "accepted",
-    document_id: req.body?.document_id
-  });
 });
 
 router.get("/vendors", async (_req, res, next) => {
@@ -110,68 +72,6 @@ router.get("/vendors", async (_req, res, next) => {
 
     res.status(200).json({
       vendors
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get("/risk-events", async (req, res, next) => {
-  try {
-    const limit = Number(req.query.limit ?? 50);
-    const offset = Number(req.query.offset ?? 0);
-
-    const { data, error, count } = await supabase
-      .from("governance_events")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + Math.max(1, limit) - 1);
-
-    if (error) {
-      throw new Error(`Failed to load risk events: ${error.message}`);
-    }
-
-    const events = (data ?? []).map((event) => ({
-      ...event,
-      event_type: event.action,
-      severity: riskLevelFromScore(Number(event.risk_delta ?? 0)),
-      reason: event.policy_triggered,
-      prompt_excerpt: event.prompt_snippet
-    }));
-
-    res.status(200).json({
-      events,
-      total: count ?? events.length,
-      page: Math.floor(offset / Math.max(1, limit)) + 1
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get("/audit-log", async (req, res, next) => {
-  try {
-    const limit = Number(req.query.limit ?? 100);
-    const severity = typeof req.query.severity === "string" ? req.query.severity : undefined;
-
-    let query = supabase
-      .from("audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(Math.max(1, limit));
-
-    if (severity) {
-      query = query.eq("severity", severity);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to load audit log: ${error.message}`);
-    }
-
-    res.status(200).json({
-      logs: data ?? []
     });
   } catch (error) {
     next(error);
@@ -237,15 +137,12 @@ function riskLevelFromScore(score: number): "low" | "medium" | "high" | "critica
   if (score >= 85) {
     return "critical";
   }
-
   if (score >= 70) {
     return "high";
   }
-
   if (score >= 40) {
     return "medium";
   }
-
   return "low";
 }
 
