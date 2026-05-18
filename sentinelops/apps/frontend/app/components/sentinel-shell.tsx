@@ -96,7 +96,15 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   );
 }
 
-export function Badge({ tone, children }: { tone: "critical" | "high" | "medium" | "low" | "info"; children: ReactNode }) {
+export function Badge({
+  tone,
+  children,
+  className = ""
+}: {
+  tone: "critical" | "high" | "medium" | "low" | "info";
+  children: ReactNode;
+  className?: string;
+}) {
   const styles = {
     critical: "border-[#ff0f7b55] bg-[rgba(255,15,123,0.15)] text-[#ff0f7b]",
     high: "border-[#ff640055] bg-[rgba(255,100,0,0.15)] text-[#ff6400]",
@@ -106,13 +114,23 @@ export function Badge({ tone, children }: { tone: "critical" | "high" | "medium"
   };
 
   return (
-    <span className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles[tone]}`}>
+    <span className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles[tone]} ${className}`}>
       {children}
     </span>
   );
 }
 
-export function Metric({ label, value, tone = "info" }: { label: string; value: string; tone?: "critical" | "high" | "medium" | "low" | "info" }) {
+export function Metric({
+  label,
+  value,
+  tone = "info",
+  className = ""
+}: {
+  label: string;
+  value: string;
+  tone?: "critical" | "high" | "medium" | "low" | "info";
+  className?: string;
+}) {
   const color = {
     critical: "text-[#ff0f7b]",
     high: "text-[#ff6400]",
@@ -122,7 +140,7 @@ export function Metric({ label, value, tone = "info" }: { label: string; value: 
   }[tone];
 
   return (
-    <Card className="p-5">
+    <Card className={className || "p-5"}>
       <div className={`text-3xl font-black ${color}`}>{value}</div>
       <div className="mt-2 text-xs uppercase tracking-[0.16em] text-[rgba(245,245,245,0.46)]">{label}</div>
     </Card>
