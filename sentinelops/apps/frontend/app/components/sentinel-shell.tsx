@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: "⌁" },
-  { href: "/upload", label: "Upload", icon: "↑" },
-  { href: "/audit", label: "Audit", icon: "◷" },
+  { href: "/dashboard", label: "Dashboard", icon: "D" },
+  { href: "/upload", label: "Upload", icon: "U" },
+  { href: "/audit", label: "Audit", icon: "A" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -25,7 +25,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="flex-1 px-2 py-4">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
             return (
               <Link
                 key={item.href}
@@ -71,7 +71,7 @@ export function Shell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               className={`rounded-md border px-3 py-2 text-xs ${
-                pathname === item.href
+                pathname === item.href || (item.href === "/dashboard" && pathname === "/")
                   ? "border-[#ff0f7b] bg-[rgba(255,15,123,0.1)] text-[#ff0f7b]"
                   : "border-[rgba(255,15,123,0.14)] text-[rgba(245,245,245,0.7)]"
               }`}

@@ -1,4 +1,6 @@
 import { supabase } from "../lib/supabase";
+import { recordAuditLog } from "./audit.service";
+import { inspectWithLobsterTrap } from "./lobster-trap.adapter";
 import { emitRealtimeEvent } from "./realtime.service";
 import { getRiskLevel, scoreVendorAnomaly } from "./vendor-anomaly.detector";
 
@@ -46,6 +48,17 @@ export async function inspectPrompt(
   context: PromptInspectionContext = {}
 ): Promise<PromptInspectionResult> {
   const normalizedPrompt = prompt.trim();
+  const lobsterTrapVerdict = await inspectWithLobsterTrap(normalizedPrompt, context);
+
+  if (lobsterTrapVerdict) {
+    return saveGovernanceEvent({
+      allowed: lobsterTrapVerdict.allowed,
+      reason: lobsterTrapVerdict.reason ?? lobsterTrapVerdict.policy_id ?? "Lobster Trap policy verdict",
+      risk_delta: lobsterTrapVerdict.risk_delta,
+      prompt,
+      context
+    });
+  }
 
   if (!normalizedPrompt) {
     return saveGovernanceEvent({
@@ -287,6 +300,18 @@ async function saveGovernanceEvent(input: {
     source: input.context.source ?? "api",
     document_id: input.context.document_id,
     created_at: new Date().toISOString()
+  });
+
+  await recordAuditLog({
+    event_type: `governance_${eventType}`,
+    severity,
+    message: input.reason ?? "Prompt inspection completed",
+    document_id: input.context.document_id,
+    metadata: {
+      event_id: result.event_id,
+      source: input.context.source ?? "api",
+      risk_delta: input.risk_delta
+    }
   });
 
   return result;

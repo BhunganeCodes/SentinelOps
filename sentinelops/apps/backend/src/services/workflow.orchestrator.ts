@@ -9,6 +9,7 @@ import {
   inspectPrompt,
   type VendorFinding
 } from "./analysis.service";
+import { recordAuditLog } from "./audit.service";
 import { emitRealtimeEvent } from "./realtime.service";
 
 export async function runWorkflow(documentId: string): Promise<void> {
@@ -16,6 +17,12 @@ export async function runWorkflow(documentId: string): Promise<void> {
     type: "upload_started",
     document_id: documentId,
     created_at: new Date().toISOString()
+  });
+  await recordAuditLog({
+    event_type: "upload_started",
+    severity: "info",
+    message: "Document upload entered the procurement analysis workflow",
+    document_id: documentId
   });
 
   try {
@@ -35,6 +42,12 @@ export async function runWorkflow(documentId: string): Promise<void> {
         reason: inspection.reason,
         created_at: new Date().toISOString()
       });
+      await recordAuditLog({
+        event_type: "analysis_blocked",
+        severity: "critical",
+        message: inspection.reason ?? "Document analysis blocked by governance inspection",
+        document_id: documentId
+      });
       return;
     }
 
@@ -48,6 +61,16 @@ export async function runWorkflow(documentId: string): Promise<void> {
       vendor_count: findings.length,
       created_at: new Date().toISOString()
     });
+    await recordAuditLog({
+      event_type: "analysis_complete",
+      severity: findings.some((finding) => finding.anomaly_score > 70) ? "high" : "low",
+      message: summarizeFindings(findings),
+      document_id: documentId,
+      metadata: {
+        vendor_count: findings.length,
+        max_anomaly_score: findings.reduce((highest, finding) => Math.max(highest, finding.anomaly_score), 0)
+      }
+    });
 
     if (findings.some((finding) => finding.anomaly_score > 70)) {
       emitRealtimeEvent("procurement_event", {
@@ -55,9 +78,20 @@ export async function runWorkflow(documentId: string): Promise<void> {
         document_id: documentId,
         created_at: new Date().toISOString()
       });
+      await inspectPrompt("High anomaly procurement document requires governance review", {
+        source: "vendor-anomaly",
+        document_id: documentId,
+        declared_intent: "procurement risk review"
+      });
     }
   } catch (error) {
     await updateDocumentStatus(documentId, "failed").catch(() => undefined);
+    await recordAuditLog({
+      event_type: "analysis_failed",
+      severity: "critical",
+      message: error instanceof Error ? error.message : "Unknown workflow error",
+      document_id: documentId
+    }).catch(() => undefined);
     emitRealtimeEvent("procurement_event", {
       type: "analysis_failed",
       document_id: documentId,

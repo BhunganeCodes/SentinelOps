@@ -121,7 +121,9 @@ export default function DashboardPage() {
     }))
     : auditEvents;
 
-  const blockedCount = data.riskEvents.filter((event) => event.event_type === "BLOCK").length;
+  const blockedCount = data.riskEvents.filter((event) =>
+    (event.event_type ?? "").toLowerCase() === "block"
+  ).length;
   const highRiskVendors = liveVendors.filter((vendor) => vendor.risk === "critical" || vendor.risk === "high").length;
   const cleanCount = liveVendors.filter((vendor) => vendor.risk === "low").length;
   const cleanAnalyses = liveVendors.length === 0
