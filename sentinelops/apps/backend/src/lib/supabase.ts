@@ -6,6 +6,6 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export const supabase = createClient(url, key, {
   realtime: {
-    transport: WebSocket
+    transport: WebSocket as any
   }
 })

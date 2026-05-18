@@ -1,11 +1,8 @@
 import './config/env'
-import aiRoutes from './routes/ai.routes'
-import './config/env'
-import express from 'express'
 import http from 'http'
-import cors from 'cors'
 import { Server } from 'socket.io'
-const app = express()
+import { app } from './app'
+
 const server = http.createServer(app)
 
 const io = new Server(server, {
@@ -13,17 +10,6 @@ const io = new Server(server, {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     methods: ['GET', 'POST']
   }
-})
-
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000'
-}))
-app.use(express.json())
-
-app.use('/api/ai', aiRoutes)
-
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' })
 })
 
 // Smoke test — emit a ping every 5 seconds

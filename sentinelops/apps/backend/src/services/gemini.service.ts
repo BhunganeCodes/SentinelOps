@@ -1,17 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const apiKey = process.env.GEMINI_API_KEY
-
-if (!apiKey) {
-  throw new Error('Missing GEMINI_API_KEY')
-}
-
-const genAI = new GoogleGenerativeAI(apiKey)
-
-const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash'
-})
-
 export interface ProcurementAnalysis {
   suppliers: string[]
   suspicious_clauses: string[]
@@ -23,6 +11,17 @@ export interface ProcurementAnalysis {
 export async function analyzeProcurementDocument(
   documentText: string
 ): Promise<ProcurementAnalysis> {
+  const apiKey = process.env.GEMINI_API_KEY
+
+  if (!apiKey) {
+    throw new Error('Missing GEMINI_API_KEY')
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash'
+  })
+
   const prompt = `
 Analyze the following procurement document and return ONLY valid JSON.
 
