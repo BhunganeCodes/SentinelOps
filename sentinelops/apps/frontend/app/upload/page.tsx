@@ -149,13 +149,13 @@ export default function UploadPage() {
 async function pollReport(documentId: string): Promise<ProcurementReport> {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
       const response = await getJson<{ report: ProcurementReport }>(`/api/procurement-report?document_id=${encodeURIComponent(documentId)}`);
       return response.report;
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => window.setTimeout(resolve, 750));
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
     }
   }
 

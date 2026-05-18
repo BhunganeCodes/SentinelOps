@@ -1,11 +1,12 @@
 import path from 'path'
+import os from 'os'
 import multer from 'multer'
 
 const allowedMimeTypes = new Set(['application/pdf', 'text/plain'])
 const allowedExtensions = new Set(['.pdf', '.txt'])
 
 const storage = multer.diskStorage({
-  destination: '/tmp',
+  destination: os.tmpdir(),
   filename: (_req, file, callback) => {
     const extension = path.extname(file.originalname).toLowerCase()
     const safeBaseName = path

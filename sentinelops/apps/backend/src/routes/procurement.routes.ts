@@ -89,6 +89,22 @@ router.get("/procurement-report", async (req, res, next) => {
       return;
     }
 
+    const { data: doc, error: docError } = await supabase
+      .from("documents")
+      .select("status")
+      .eq("id", documentId)
+      .single();
+
+    if (docError || !doc) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+
+    if (doc.status !== "complete") {
+      res.status(404).json({ error: "Procurement analysis not ready yet" });
+      return;
+    }
+
     const { data, error } = await supabase
       .from("procurement_analysis")
       .select("*")

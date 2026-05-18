@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -31,11 +31,17 @@ vi.mock('../services/audit.service', () => ({
   recordAuditLog: vi.fn(async () => undefined),
 }))
 
+const mockEvaluate = vi.fn()
 vi.mock('../services/analysis.service', () => ({
-  inspectPrompt: vi.fn(async () => ({ allowed: true, risk_delta: 0 })),
   analyzeDocumentText: vi.fn(async () => [
     { vendor_name: 'Test Vendor', price: 1000, anomaly_score: 30, risk_level: 'low' as const, suspicious_claim: null },
   ]),
+}))
+
+vi.mock('../services/governance.engine', () => ({
+  GovernanceEngine: vi.fn().mockImplementation(function () {
+    return { evaluate: mockEvaluate }
+  }),
 }))
 
 vi.mock('../services/document.service', () => ({
@@ -52,16 +58,19 @@ vi.mock('../services/document.service', () => ({
 import { runWorkflow } from '../services/workflow.orchestrator'
 
 describe('WorkflowOrchestrator', () => {
+  beforeEach(() => {
+    mockEvaluate.mockReset()
+    mockEvaluate.mockReturnValue({ action: 'allow', risk_delta: 0 })
+  })
+
   it('completes the analysis pipeline when no inspection issues', async () => {
     await expect(runWorkflow('doc-1')).resolves.toBeUndefined()
   })
 
   it('handles inspection blocks gracefully', async () => {
-    const { inspectPrompt } = await import('../services/analysis.service')
-    vi.mocked(inspectPrompt).mockResolvedValueOnce({
-      allowed: false,
-      reason: 'Blocked by governance policy',
-      event_id: 'evt-1',
+    mockEvaluate.mockReturnValueOnce({
+      action: 'block',
+      policy_triggered: 'Blocked by governance policy',
       risk_delta: 50,
     })
 

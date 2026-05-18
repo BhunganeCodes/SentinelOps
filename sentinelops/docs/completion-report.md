@@ -4,7 +4,7 @@ Generated: 2026-05-18
 
 ## Current Status
 
-SentinelOPS is structurally assembled as a pnpm monorepo with a Next.js frontend, Express backend, Supabase persistence, Socket.IO real-time events, Gemini-backed procurement analysis with deterministic local fallback, and governance inspection heuristics. The production build and backend test suite are currently green.
+SentinelOPS is structurally assembled as a pnpm monorepo with a Next.js frontend, Express backend, Supabase persistence, Socket.IO real-time events, Gemini-backed procurement analysis with deterministic local fallback, and governance inspection heuristics. The production build and test suites for both backend and frontend are currently green.
 
 The only intentionally missing platform dependency is the real Lobster Trap integration. A backend adapter seam exists at `apps/backend/src/services/lobster-trap.adapter.ts` so the SDK/API can be plugged in without changing route contracts or frontend screens.
 
@@ -13,6 +13,10 @@ The only intentionally missing platform dependency is the real Lobster Trap inte
 - Backend health route and API routing are wired through Express.
 - Upload accepts PDF/TXT files, stores a `documents` row, and starts background analysis.
 - Workflow orchestrator reads uploaded text, runs governance inspection, saves procurement findings, updates document status, and emits Socket.IO events.
+- Governance engine replaced `inspectPrompt` with synchronous `GovernanceEngine.evaluate()` for all prompt inspection; temp files cleaned up via `unlink` in `finally` block.
+- PDF text extraction uses `pdf-parse` library instead of raw byte stripping.
+- Procurement report endpoint checks `documents.status === "complete"` before querying `procurement_analysis`.
+- Frontend polling updated to 30 attempts × 2s intervals for resilience.
 - Vendor anomaly detector follows the execution-guide scoring rule: price inflation > 0.3 adds 30, unknown entity adds 25, suspicious clauses add up to 30, capped at 100.
 - Dashboard, upload, and audit pages compile under Next.js 16.
 - Supabase schema is codified in `supabase/migrations/001_initial_schema.sql`.
@@ -42,4 +46,24 @@ The only intentionally missing platform dependency is the real Lobster Trap inte
 - `pnpm build`
 - `pnpm lint`
 
-Latest local result before this report: tests passed, production build passed, lint returned warnings only from the legacy `src/SentinelOpsAppUI.jsx` prototype file.
+## Latest Full Analysis (2026-05-18)
+
+| Suite | Result |
+|---|---|
+| Backend tests (14 files) | 70/70 passed |
+| Frontend tests (5 files) | 12/12 passed |
+| Backend build (`tsc`) | Clean — no errors |
+| Frontend build (`next build`) | Compiled successfully — all 5 routes static |
+
+### Files modified this session
+
+| # | File | Change |
+|---|---|---|
+| 1 | `upload.middleware.ts` | `destination: os.tmpdir()` |
+| 2 | `workflow.orchestrator.ts` | Replaced `inspectPrompt` with `GovernanceEngine.evaluate()` + `unlink` cleanup in `finally` |
+| 3 | `procurement.routes.ts` | Check `documents.status` before querying `procurement_analysis` |
+| 4 | `upload/page.tsx` | 30 attempts × 2s polling |
+| 5 | `document.service.ts` | Use `pdf-parse` for PDF files |
+| 6 | `package.json` | Added `pdf-parse` dependency |
+| 7 | `workflow-orchestrator.unit.test.ts` | Mock `GovernanceEngine` instead of `analysis.service.inspectPrompt` |
+| 8 | `pdf-parse.d.ts` | Added type declarations for `pdf-parse` |
