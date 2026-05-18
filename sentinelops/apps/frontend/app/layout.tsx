@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LayoutShell } from "./components/layout-shell";
 
 export const metadata: Metadata = {
-  title: 'SentinelOPS',
-  description: 'AI-powered procurement intelligence',
+  title: "SentinelOPS",
+  description: "AI-powered procurement intelligence",
 };
 
 export default function RootLayout({
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LayoutShell>{children}</LayoutShell>
+      </body>
     </html>
   );
 }

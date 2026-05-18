@@ -17,6 +17,7 @@ export type Vendor = {
   id?: string;
   vendor_name?: string;
   name?: string;
+  price?: number | null;
   anomaly_score?: number;
   score?: number;
   risk_level?: string;

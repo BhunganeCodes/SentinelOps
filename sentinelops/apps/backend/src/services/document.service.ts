@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { readFile } from "node:fs/promises";
+import pdf from "pdf-parse";
 import { supabase } from "../lib/supabase";
 
 export type CreatedDocument = {
@@ -90,6 +91,11 @@ export async function readDocumentText(
 
   if (document.mime_type === "text/plain") {
     return contents.toString("utf8");
+  }
+
+  if (document.mime_type === "application/pdf") {
+    const data = await pdf(contents);
+    return data.text;
   }
 
   return contents

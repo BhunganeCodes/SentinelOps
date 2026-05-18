@@ -11,13 +11,16 @@ type AuditInput = {
   metadata?: Record<string, unknown>;
 };
 
+function normalizeSeverity(severity?: string): "info" | "critical" {
+  if (severity === "critical" || severity === "high") return "critical";
+  return "info";
+}
+
 export async function recordAuditLog(input: AuditInput): Promise<void> {
-  const auditRow = {
+  const auditRow: Record<string, unknown> = {
     event_type: input.event_type,
-    severity: input.severity ?? "info",
+    severity: normalizeSeverity(input.severity),
     message: input.message,
-    document_id: input.document_id,
-    metadata: input.metadata ?? {}
   };
 
   const { data, error } = await supabase

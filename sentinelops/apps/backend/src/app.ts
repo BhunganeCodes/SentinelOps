@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import aiRoutes from './routes/ai.routes'
+import governanceRoutes from './routes/governance.routes'
+import auditRoutes from './routes/audit.routes'
 import procurementRoutes from './routes/procurement.routes'
 
 export const app = express()
@@ -14,7 +16,9 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' })
 })
 
-app.use('/api/ai', aiRoutes)
+app.use('/api', aiRoutes)
+app.use('/api', governanceRoutes)
+app.use('/api', auditRoutes)
 app.use('/api', procurementRoutes)
 
 app.use((error: Error & { statusCode?: number; code?: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

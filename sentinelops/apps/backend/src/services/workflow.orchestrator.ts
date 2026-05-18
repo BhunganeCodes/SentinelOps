@@ -1,3 +1,4 @@
+import { unlink } from "node:fs/promises";
 import { supabase } from "../lib/supabase";
 import {
   getDocumentForAnalysis,
@@ -6,9 +7,9 @@ import {
 } from "./document.service";
 import {
   analyzeDocumentText,
-  inspectPrompt,
   type VendorFinding
 } from "./analysis.service";
+import { GovernanceEngine } from "./governance.engine";
 import { recordAuditLog } from "./audit.service";
 import { emitRealtimeEvent } from "./realtime.service";
 
@@ -25,27 +26,29 @@ export async function runWorkflow(documentId: string): Promise<void> {
     document_id: documentId
   });
 
+  const engine = new GovernanceEngine();
+  let document: Awaited<ReturnType<typeof getDocumentForAnalysis>> | undefined;
+
   try {
-    const document = await getDocumentForAnalysis(documentId);
+    document = await getDocumentForAnalysis(documentId);
     const text = await readDocumentText(document);
-    const inspection = await inspectPrompt(text, {
-      source: "upload",
-      document_id: documentId
+    const inspection = engine.evaluate(text, {
+      declared_intent: "procurement document analysis"
     });
 
-    if (!inspection.allowed) {
+    if (inspection.action === "block") {
       await updateDocumentStatus(documentId, "blocked");
-      await saveProcurementAnalysis(documentId, inspection.reason ?? "Prompt inspection blocked the document", []);
+      await saveProcurementAnalysis(documentId, inspection.policy_triggered ?? "Governance policy blocked the document", []);
       emitRealtimeEvent("procurement_event", {
         type: "analysis_blocked",
         document_id: documentId,
-        reason: inspection.reason,
+        reason: inspection.policy_triggered,
         created_at: new Date().toISOString()
       });
       await recordAuditLog({
         event_type: "analysis_blocked",
         severity: "critical",
-        message: inspection.reason ?? "Document analysis blocked by governance inspection",
+        message: inspection.policy_triggered ?? "Document analysis blocked by governance policy",
         document_id: documentId
       });
       return;
@@ -78,9 +81,7 @@ export async function runWorkflow(documentId: string): Promise<void> {
         document_id: documentId,
         created_at: new Date().toISOString()
       });
-      await inspectPrompt("High anomaly procurement document requires governance review", {
-        source: "vendor-anomaly",
-        document_id: documentId,
+      engine.evaluate("High anomaly procurement document requires governance review", {
         declared_intent: "procurement risk review"
       });
     }
@@ -99,6 +100,10 @@ export async function runWorkflow(documentId: string): Promise<void> {
       created_at: new Date().toISOString()
     });
     throw error;
+  } finally {
+    if (document?.file_path) {
+      await unlink(document.file_path).catch(() => undefined);
+    }
   }
 }
 
