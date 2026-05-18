@@ -1,3 +1,10 @@
+import dotenv from 'dotenv'
+import path from 'path'
+
+dotenv.config({
+  path: path.resolve(process.cwd(), '.env'),
+})
+
 const required = [
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
@@ -9,17 +16,11 @@ const required = [
 type EnvKey = typeof required[number]
 
 function validateEnv(): Record<EnvKey, string> {
-  const missing: string[] = []
-
-  for (const key of required) {
-    if (!process.env[key]) {
-      missing.push(key)
-    }
-  }
+  const missing = required.filter((key) => !process.env[key])
 
   if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:')
-    missing.forEach(k => console.error(`   - ${k}`))
+    console.error('Missing required environment variables:')
+    missing.forEach((key) => console.error(`   - ${key}`))
     console.error('\nAdd them to your .env file and restart the server.')
     process.exit(1)
   }

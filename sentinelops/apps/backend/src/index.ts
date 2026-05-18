@@ -1,11 +1,8 @@
-import 'dotenv/config'
 import './config/env'
-import express from 'express'
 import http from 'http'
-import cors from 'cors'
 import { Server } from 'socket.io'
+import { app } from './app'
 
-const app = express()
 const server = http.createServer(app)
 
 const io = new Server(server, {
@@ -13,15 +10,6 @@ const io = new Server(server, {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     methods: ['GET', 'POST']
   }
-})
-
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000'
-}))
-app.use(express.json())
-
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' })
 })
 
 // Smoke test — emit a ping every 5 seconds
